@@ -20,66 +20,82 @@ def is_valid_icao(code):
 
 
 def validate_rate(fir, lines):
-    for i, line in enumerate(lines, start=1):
+    for line_num, line in lines:
         if line.startswith("#") or line.startswith("AIRPORT"):
             continue
         fields = line.split(":")
         if len(fields) != 9:
-            error(fir, "rate.txt", i, f"expected 9 fields, got {len(fields)}")
+            error(fir, "rate.txt", line_num, f"expected 9 fields, got {len(fields)}")
             continue
         airport = fields[0]
         if not is_valid_icao(airport):
-            error(fir, "rate.txt", i, f"invalid ICAO code: '{airport}'")
+            error(fir, "rate.txt", line_num, f"invalid ICAO code: '{airport}'")
         rate_field = fields[8]
         parts = rate_field.split("_")
         if len(parts) != 2:
-            error(fir, "rate.txt", i, f"rate field should be Rate_RateLvo, got: '{rate_field}'")
+            error(fir, "rate.txt", line_num, f"rate field should be Rate_RateLvo, got: '{rate_field}'")
             continue
         for part in parts:
             if not part.isdigit() or int(part) <= 0:
-                error(fir, "rate.txt", i, f"rate value should be a positive integer, got: '{part}'")
+                error(fir, "rate.txt", line_num, f"rate value should be a positive integer, got: '{part}'")
 
 
 def validate_sidinterval(fir, lines):
-    for i, line in enumerate(lines, start=1):
+    for line_num, line in lines:
         if line.startswith("#"):
             continue
         fields = line.split(",")
         if len(fields) != 5:
-            error(fir, "sidinterval.txt", i, f"expected 5 fields, got {len(fields)}")
+            error(fir, "sidinterval.txt", line_num, f"expected 5 fields, got {len(fields)}")
             continue
         airport = fields[0]
         if not is_valid_icao(airport):
-            error(fir, "sidinterval.txt", i, f"invalid ICAO code: '{airport}'")
+            error(fir, "sidinterval.txt", line_num, f"invalid ICAO code: '{airport}'")
         sep = fields[4]
         if not sep.isdigit() or int(sep) <= 0:
-            error(fir, "sidinterval.txt", i, f"separation should be a positive integer, got: '{sep}'")
+            error(fir, "sidinterval.txt", line_num, f"separation should be a positive integer, got: '{sep}'")
 
 
 def validate_taxizones(fir, lines):
-    for i, line in enumerate(lines, start=1):
-        if line.startswith("#") or line.strip() == "":
+    for line_num, line in lines:
+        if line.startswith("#"):
             continue
         fields = line.split(":")
         # Each line: AIRPORT:RUNWAY + 4 coordinate pairs (8 fields) + ZONE_ID = 11 total
         if len(fields) != 11:
-            error(fir, "taxizones.txt", i, f"expected 11 fields, got {len(fields)}")
+            error(fir, "taxizones.txt", line_num, f"expected 11 fields, got {len(fields)}")
             continue
         airport = fields[0]
         if not is_valid_icao(airport):
-            error(fir, "taxizones.txt", i, f"invalid ICAO code: '{airport}'")
+            error(fir, "taxizones.txt", line_num, f"invalid ICAO code: '{airport}'")
         zone_id = fields[10]
         if not zone_id.isdigit():
-            error(fir, "taxizones.txt", i, f"zone ID should be numeric, got: '{zone_id}'")
+            error(fir, "taxizones.txt", line_num, f"zone ID should be numeric, got: '{zone_id}'")
+
+
+def is_valid_ctot_time(value):
+    if not re.match(r"^\d{4}$", value):
+        return False
+    hours, minutes = int(value[:2]), int(value[2:])
+    return 0 <= hours <= 23 and 0 <= minutes <= 59
 
 
 def validate_ctot(fir, lines):
-    for i, line in enumerate(lines, start=1):
-        if line.startswith("#") or line.startswith("[") or line.startswith("Add"):
+    for line_num, line in lines:
+        if line.startswith("#") or line.startswith("Add"):
+            continue
+        # Skip the format specification line
+        if line.strip() == "[CID],[CTOT]":
             continue
         fields = line.split(",")
         if len(fields) != 2:
-            error(fir, "CTOT.txt", i, f"expected 2 fields, got {len(fields)}")
+            error(fir, "CTOT.txt", line_num, f"expected 2 fields, got {len(fields)}")
+            continue
+        cid, ctot = fields[0].strip(), fields[1].strip()
+        if not cid.isdigit():
+            error(fir, "CTOT.txt", line_num, f"CID should be numeric, got: '{cid}'")
+        if not is_valid_ctot_time(ctot):
+            error(fir, "CTOT.txt", line_num, f"CTOT should be a valid time (0000-2359), got: '{ctot}'")
 
 
 def validate_fir(fir_path, fir_name):
@@ -93,7 +109,7 @@ def validate_fir(fir_path, fir_name):
         if not os.path.isfile(filepath):
             continue
         with open(filepath, "r") as f:
-            lines = [line.strip() for line in f if line.strip()]
+            lines = [(num, line.strip()) for num, line in enumerate(f, start=1) if line.strip()]
 
         if filename == "rate.txt":
             validate_rate(fir_name, lines)
@@ -109,7 +125,7 @@ def main():
     fir_dirs = []
     for entry in sorted(os.listdir(REPO_ROOT)):
         full_path = os.path.join(REPO_ROOT, entry)
-        if os.path.isdir(full_path) and not entry.startswith("."):
+        if os.path.isdir(full_path) and not entry.startswith(".") and is_valid_icao(entry):
             fir_dirs.append((entry, full_path))
 
     if not fir_dirs:

@@ -90,7 +90,7 @@ python validate.py
 
 The script checks:
 - Correct number of fields per line
-- Valid ICAO airport codes (4 characters, alphabetic)
+- Valid ICAO airport codes (4 uppercase letters A-Z)
 - Numeric rate values are positive integers
 - SID separation values are positive integers
 
