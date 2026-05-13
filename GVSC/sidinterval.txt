@@ -1,0 +1,1 @@
+# <ICAO_Airport>,<dep_rwy>,<SID1>,<SID2>,<seperation_minutes>
